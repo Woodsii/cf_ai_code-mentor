@@ -27,7 +27,6 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_classes": ["MentorSession"],
 			"new_sqlite_classes": ["MentorSession"],
 		},
 	],
