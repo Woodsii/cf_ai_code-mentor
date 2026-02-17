@@ -8,11 +8,29 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-02-12",
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
-	"compatibility_flags": [
-		"nodejs_compat"
-	]
+
+	"compatibility_flags": ["nodejs_compat"],
+
+	// 1. Enable Durable Objects
+	"durable_objects": {
+		"bindings": [{ "name": "MENTOR_SESSION", "class_name": "MentorSession" }],
+	},
+
+	// 2. Enable Workers AI
+	"ai": {
+		"binding": "AI",
+	},
+
+	// 3. Enable Migrations (Required for Durable Objects)
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_classes": ["MentorSession"],
+		},
+	],
+
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
