@@ -17,7 +17,8 @@ stack.
 
 Architecture: Use a "Monolith Worker" approach. I do not want separate
 frontend build steps (no Vite/React). The Worker should serve a raw HTML/JS
-string for the UI and handle the API/WebSocket logic in the same index.ts file.
+string for the UI and handle the API/WebSocket logic in the same index.ts
+file.
 
 #### Tech Stack:
 
@@ -34,3 +35,10 @@ string for the UI and handle the API/WebSocket logic in the same index.ts file.
 - Provide the full, copy-pasteable code for src/index.ts that includes the Worker logic, the Durable Object class, and the HTML frontend string.
 
 - Explain how to run it locally with npx wrangler dev.
+
+## Tuning the Styling
+
+I would like to have a more refined editor interface (syntax highlighting
+might be a stretch, but something that allows for tabs would be nice), as
+well as flex-boxing the components to its a classic 2:1 horizontal view. I
+really want this to stand out!
