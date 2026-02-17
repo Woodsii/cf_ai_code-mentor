@@ -29,6 +29,9 @@ export default {
 
 // --- 2. THE DURABLE OBJECT (State & AI) ---
 export class MentorSession extends DurableObject<Env> {
+	// We keep track of the last code we paid to analyze
+	lastAnalyzedCode: string = '';
+
 	constructor(state: DurableObjectState, env: Env) {
 		super(state, env);
 	}
@@ -40,42 +43,76 @@ export class MentorSession extends DurableObject<Env> {
 		}
 
 		const { 0: client, 1: server } = new WebSocketPair();
-
-		// Accept the websocket connection
 		this.ctx.acceptWebSocket(server);
 
-		// Listen for messages from the client (the React/HTML frontend)
-		server.addEventListener('message', async (event) => {
-			const userCode = event.data as string;
-			console.log(`[DO] Received input length: ${userCode.length}`); // DEBUG LOG 1
-
-			// --- THE "CODE MENTOR" LOGIC ---
-			// We only trigger AI if the code is longer than 10 chars (simple debounce)
-			if (userCode.length > 10) {
-				console.log(`[DO] Triggering AI...`); // DEBUG LOG 2
-				const modelName = '@cf/meta/llama-3.3-70b-instruct' as any;
-
-				try {
-					// Call Workers AI (Llama 3.3)
-					const response = (await this.env.AI.run(modelName, {
-						messages: [
-							{ role: 'system', content: 'You are a coding mentor. Provide a 1-sentence tip based on this code.' },
-							{ role: 'user', content: userCode },
-						],
-					})) as { response: string };
-
-					console.log(`[DO] AI Response: ${response.response.substring(0, 20)}...`); // DEBUG LOG 3
-					server.send(`AI TIP: ${response.response}`);
-				} catch (err) {
-					console.error(`[DO] AI Error:`, err); // CRITICAL ERROR LOG
-					server.send(`AI TIP: Error generating tip. Check logs.`);
-				}
-			} else {
-				console.log(`[DO] Input too short, skipping AI.`);
-			}
-		});
-
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+		const currentCode = message.toString();
+
+		// calculate the change magnitude
+		const changeMagnitude = this.calculateDiff(this.lastAnalyzedCode, currentCode);
+
+		const CHANGE_THRESHOLD = 50;
+		// man I love logging
+		console.log(`[DO] Length: ${currentCode.length} | Changes: ${changeMagnitude} | Threshold: ${CHANGE_THRESHOLD}`);
+
+		// if the change magnitude is greater than the threshold, only then do I start to burn my cloudflare resources.
+		if (changeMagnitude > CHANGE_THRESHOLD) {
+			console.log(`[DO] Threshold hit! Triggering AI...`);
+
+			const modelName = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+
+			try {
+				const response = (await this.env.AI.run(modelName, {
+					messages: [
+						{ role: 'system', content: 'You are a coding mentor. Provide a 1-sentence tip based on this code.' },
+						{ role: 'user', content: currentCode },
+					],
+				})) as { response: string };
+
+				ws.send(`AI TIP: ${response.response}`);
+
+				// update the baseline *only* after a successful run
+				this.lastAnalyzedCode = currentCode;
+			} catch (err) {
+				console.error(`[DO] AI Error:`, err);
+				ws.send(`AI TIP: Error generating tip.`);
+			}
+		} else {
+		}
+	}
+
+	/**
+	 * A fast, lightweight heuristic to count changed characters.
+	 * It strips matching prefixes and suffixes and counts the "middle" difference.
+	 */
+	calculateDiff(oldText: string, newText: string): number {
+		if (oldText === newText) return 0;
+		if (!oldText) return newText.length;
+		if (!newText) return oldText.length;
+
+		let start = 0;
+		let end = 0;
+		const minLen = Math.min(oldText.length, newText.length);
+
+		// 1. Scan from the start (Common Prefix)
+		while (start < minLen && oldText[start] === newText[start]) {
+			start++;
+		}
+
+		// 2. Scan from the end (Common Suffix), but don't overlap with start
+		// We use relative indexing for the end scan
+		while (end < minLen - start && oldText[oldText.length - 1 - end] === newText[newText.length - 1 - end]) {
+			end++;
+		}
+
+		// 3. The "Edit" is roughly the max length of the non-matching middle parts
+		const oldDiff = oldText.length - start - end;
+		const newDiff = newText.length - start - end;
+
+		return Math.max(oldDiff, newDiff);
 	}
 }
 
