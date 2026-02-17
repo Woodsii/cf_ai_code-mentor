@@ -31,9 +31,14 @@ export default {
 export class MentorSession extends DurableObject<Env> {
 	// We keep track of the last code we paid to analyze
 	lastAnalyzedCode: string = '';
+	lastTip: string = '';
 
 	constructor(state: DurableObjectState, env: Env) {
 		super(state, env);
+		this.ctx.blockConcurrencyWhile(async () => {
+			this.lastAnalyzedCode = (await this.ctx.storage.get('lastCode')) || '';
+			this.lastTip = (await this.ctx.storage.get('lastTip')) || '';
+		});
 	}
 
 	async fetch(request: Request) {
@@ -44,6 +49,14 @@ export class MentorSession extends DurableObject<Env> {
 
 		const { 0: client, 1: server } = new WebSocketPair();
 		this.ctx.acceptWebSocket(server);
+
+		// hydrate the front end with the old code + tips
+		if (this.lastAnalyzedCode) {
+			server.send(`RESTORE_CODE:${this.lastAnalyzedCode}`);
+		}
+		if (this.lastTip) {
+			server.send(`AI TIP:${this.lastTip}`);
+		}
 
 		return new Response(null, { status: 101, webSocket: client });
 	}
@@ -76,6 +89,11 @@ export class MentorSession extends DurableObject<Env> {
 
 				// update the baseline *only* after a successful run
 				this.lastAnalyzedCode = currentCode;
+				this.lastTip = response.response;
+
+				// send the baseline to the server.
+				await this.ctx.storage.put('lastCode', this.lastAnalyzedCode);
+				await this.ctx.storage.put('lastTip', this.lastTip);
 			} catch (err) {
 				console.error(`[DO] AI Error:`, err);
 				ws.send(`AI TIP: Error generating tip.`);
@@ -231,14 +249,24 @@ function fibonacci(n: number) {
     ws.onmessage = (event) => {
       thinking.classList.remove("active");
       
-      const cleanMsg = event.data.replace("AI TIP: ", "");
+      const data = event.data;
+
+      // CASE A: It's the AI speaking (or a restored tip)
+      if (data.startsWith("AI TIP:")) {
+        const cleanMsg = data.replace("AI TIP: ", "");
+        const msgDiv = document.createElement("div");
+        msgDiv.className = "message ai";
+        msgDiv.innerHTML = "<h4>SUGGESTION</h4><p>" + cleanMsg + "</p>";
+        feed.insertBefore(msgDiv, feed.firstChild); 
+      }
       
-      // Create a nice card for the new tip
-      const msgDiv = document.createElement("div");
-      msgDiv.className = "message ai";
-      msgDiv.innerHTML = "<h4>SUGGESTION</h4><p>" + cleanMsg + "</p>";
-      
-      feed.insertBefore(msgDiv, feed.firstChild); // Newest on top
+      // CASE B: It's a Code Restore command (NEW)
+      else if (data.startsWith("RESTORE_CODE:")) {
+        const savedCode = data.replace("RESTORE_CODE:", "");
+        editor.value = savedCode;
+        // Optional: Flash a status to let them know
+        statusText.innerText = "Session Restored";
+      }
     };
 
     // 3. Tab Key Support (The "Editor" Feel)

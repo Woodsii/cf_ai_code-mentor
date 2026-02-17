@@ -42,3 +42,9 @@ I would like to have a more refined editor interface (syntax highlighting
 might be a stretch, but something that allows for tabs would be nice), as
 well as flex-boxing the components to its a classic 2:1 horizontal view. I
 really want this to stand out!
+
+## Compliance
+
+Alright, before I get ready to deploy, can you check over this screenshot of
+requirements and make sure that we are up to snuff here? What changes could
+I make to more accurately meet the requirements.
