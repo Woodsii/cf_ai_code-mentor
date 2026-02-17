@@ -33,7 +33,7 @@ cd cf_ai_code_mentor
 npm install
 npx wrangler dev
 ```
-However the project is also available at ![this link](https://code-mentor.beanmanwoods.workers.dev). 
+However the project is also available at ![this link](https://mentor.secrethandshakernd.com)
 
 ## Limitations
 
